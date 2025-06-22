@@ -61,6 +61,6 @@ pub(crate) async fn basic_auth(State(users): State<Users>, mut req: Request, nex
             header::WWW_AUTHENTICATE,
             HeaderValue::from_str("Basic realm=\"Files\"").unwrap(),
         )
-        .body("Unautorized".into())
+        .body("Unauthorized".into())
         .unwrap()
 }
