@@ -171,6 +171,7 @@ fn handle_dir(file_path: PathBuf, base_dir: &PathBuf) -> Response<axum::body::Bo
             children.push(entry.path());
         }
     }
+    children.sort();
     let mut r = String::new();
 
     //parent dir link
