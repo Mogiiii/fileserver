@@ -12,21 +12,17 @@ use std::{
 };
 
 use axum::{
-    Router,
-    body::Body,
-    extract::State,
-    http::{HeaderValue, Response, header},
-    response::IntoResponse,
-    routing::get,
+    body::Body, http::{header, HeaderValue, Response}, response::IntoResponse, routing::get, Extension, Router
 };
 use mime_guess;
 use tokio::fs::File;
 use tokio_util::io::ReaderStream;
 
+use crate::auth::AuthenticatedUser;
+
 #[derive(Clone)]
 struct Context {
-    directory: String,
-    users: Arc<HashMap<String, String>>,
+    users: Arc<HashMap<String, auth::UserData>>,
 }
 
 #[tokio::main]
@@ -37,7 +33,6 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let ctx = Context {
-        directory: env::var("FILES_PATH").expect("Missing Env var: FILE_PATH"),
         users: auth::load_users(
             &env::var("USERS_JSON_PATH").expect("Missing Env var: USERS_JSON_PATH"),
         ),
@@ -72,21 +67,26 @@ macro_rules! not_found {
 }
 
 async fn request_handler(
-    State(context): State<Context>,
+    Extension(user): Extension<AuthenticatedUser>,
     path: Option<axum::extract::Path<String>>,
 ) -> impl IntoResponse {
-    let file_path = match path {
-        Some(p) => Path::new(&context.directory).join(p.0),
-        None => PathBuf::from(&context.directory),
+    let dir= user.directory;
+    let requested_path = match &path {
+        Some(p) => format!("{}{}", "/", p.0.clone()),
+        None => String::from("/"),
     };
-    info!("GET {}", &file_path.to_str().unwrap());
-    if exists(&file_path).unwrap_or(false) {
-        if is_safe(&file_path, &context.directory) {
-            if file_path.is_file() {
-                match File::open(&file_path).await {
+    let absolute_file_path = match path {
+        Some(p) => Path::new(&dir).join(p.0),
+        None => PathBuf::from(&dir),
+    };
+    info!("GET {}: {} => {}", user.username, requested_path, &absolute_file_path.to_str().unwrap());
+    if exists(&absolute_file_path).unwrap_or(false) {
+        if is_safe(&absolute_file_path, &dir) {
+            if absolute_file_path.is_file() {
+                match File::open(&absolute_file_path).await {
                     Ok(f) => {
                         info!("200 Success");
-                        handle_file(f, file_path)
+                        handle_file(f, absolute_file_path)
                     }
                     Err(e) => {
                         debug!("{e}");
@@ -94,9 +94,9 @@ async fn request_handler(
                     }
                 }
             } else {
-                if file_path.is_dir() {
+                if absolute_file_path.is_dir() {
                     info!("200 Success");
-                    handle_dir(file_path, &PathBuf::from(context.directory))
+                    handle_dir(absolute_file_path, &PathBuf::from(dir))
                 } else {
                     warn!("500 unexpected code path: Not file or directory?");
                     Response::builder()
@@ -108,7 +108,7 @@ async fn request_handler(
         } else {
             warn!(
                 "404 Ignored due to malicious request: {}",
-                file_path.to_str().unwrap()
+                absolute_file_path.to_str().unwrap()
             );
             return not_found!();
         }

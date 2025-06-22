@@ -1,3 +1,10 @@
 {
-    "user": "bcrypt password"
+    "user1": {
+        "password": "bcrypt password"
+        "directory": "/absolute/path/to/directory/user1"
+    },
+    "user2": {
+        "password": "bcrypt password"
+        "directory": "/absolute/path/to/directory/user2" 
+    }
 }
