@@ -7,7 +7,6 @@ use std::{
     env,
     fs::{canonicalize, exists},
     path::{Component, Path, PathBuf},
-    str::FromStr,
     sync::Arc,
 };
 
@@ -39,9 +38,8 @@ async fn main() {
     };
 
     let app = Router::new()
-        .route("/files", get(request_handler))
-        .route("/files/", get(request_handler))
-        .route("/files/{*wildcard}", get(request_handler))
+        .route("/", get(request_handler))
+        .route("/{*wildcard}", get(request_handler))
         .layer(axum::middleware::from_fn_with_state(
             ctx.users.clone(),
             auth::basic_auth,
@@ -202,7 +200,7 @@ fn remove_base_dir(path: PathBuf, base: &PathBuf) -> PathBuf {
 
 fn html_link(pb: &Path) -> String {
     let mut s = pb.to_str().unwrap();
-    let mut href = String::from_str("/files/").unwrap();
+    let mut href = String::new();
     href.push_str(s);
     if s == "" {
         s = ".."
